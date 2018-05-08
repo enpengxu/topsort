@@ -3,19 +3,28 @@
 #include <malloc.h>
 #include <stdio.h>
 
+#define NODE_COLOR_WHITE 0
+#define NODE_COLOR_BLACK 1
+
 struct node {
 	int src;
 	int dst;
 
 	unsigned order;
+	unsigned color;
 	struct node * dep;
 	struct node * next;
 	struct node * prev;
 };
 
 struct node_list {
+	unsigned num;
 	struct node  head;
 };
+
+#define list_init(list)				   \
+	(list)->head.next = &(list)->head;	   \
+	(list)->head.prev = &(list)->head
 
 #define first_node(list)  (list)->head.next
 #define last_node(list)   (list)->head.prev
@@ -46,7 +55,6 @@ struct node_list {
 	(node)->prev = (n);				\
 	(n)->next->prev = (node);			\
 	(n)->next = (node)
-
 
 static void
 node_list_init(struct node_list * list)
@@ -96,7 +104,9 @@ node_is_depend_on(struct node_list * list,
 	struct node * dep_dst;
 	if (node->order < target->order)
 		return 0;
-
+	if (node->dst == target->dst ||
+		node->src == target->dst)
+		return 1;
 	dep_src  = node_find_first_dep(list, node->src, node->prev);
 	dep_dst  = node_find_first_dep(list, node->dst, node->prev);
 
@@ -159,24 +169,27 @@ node_merge(struct node_list * list,
 }
 
 static void
-node_list_sort(struct node_list * list)
+node_list_sort(struct node_list * list, struct node **ptr_list)
 {
 	struct node * n0, *n1, * tmp;
-	assert(list && list->head.next);
+	assert(list && list->head.next && ptr_list);
 
-	for (n1 = last_node(list); n1 != &(list)->head;) {
-		tmp = n1->prev;
-		n0 = n1->prev;
-		while(n0 != &list->head && n0->dst != n1->dst) {
-			n0 = n0->prev;
-		}
-		if (n0 != &list->head && n0->dst == n0->dst &&
-			n0->next != n1) {
+	unsigned num = list->num - 1;
+	n1 = last_node(list);
+	for_each_node_prev(n1, list) {
+		if (n1->color == NODE_COLOR_BLACK)
+			continue;
+
+		ptr_list[num--] = n1;
+		n0 = n1;
+		while(n0 = node_find_first_dep(list, n0->dst, n0->prev)) {
 			if (node_is_mergable(list, n0, n1)) {
-				node_merge(list, n0, n1);
+				//node_merge(list, n0, n1);
+				n0->color = NODE_COLOR_BLACK;
+				ptr_list[num--] = n0;
 			}
 		}
-		n1 = tmp;
+		n1->color = NODE_COLOR_BLACK;
 	}
 }
 
@@ -192,10 +205,9 @@ node_list_create(struct node_list * list,
 {
 	int i;
 	struct node * node, *p;
-	list->head.next = &list->head;
-	list->head.prev = &list->head;
-
-	for (p= &list->head, i=0; i<num; i++) {
+	list_init(list);
+	list->num = num;
+	for (p = &list->head, i=0; i<num; i++) {
 		node = calloc(1, sizeof(*node));
 		node->src = ds[i].src;
 		node->dst = ds[i].dst;
@@ -217,10 +229,23 @@ node_list_dump(struct node_list * list, const char * str)
 	int i=0;
 	struct node * node = first_node(list);
 	fprintf(stderr, "%s \n", str);
+
 	for_each_node_next(node, list) {
 		fprintf(stderr, "node[%2d] : src/dst { %3d / %3d } \n",
 				i++, node->src, node->dst);
 	}
+}
+
+static void
+node_ptr_list_dump(struct node ** ptr_list, unsigned num, const char * str)
+{
+	unsigned i;
+	fprintf(stderr, "%s \n", str);
+	for (i=0; i<num; i++) {
+		fprintf(stderr, "node[%2d] : src/dst { %3d / %3d } \n",
+				i, ptr_list[i]->src, ptr_list[i]->dst);
+	}
+	fprintf(stderr, "\n");
 }
 
 static struct dst_src test1[]=  {
@@ -243,21 +268,35 @@ static struct dst_src test3[]=  {
 	{ .src =   2, .dst = 1 }
 };
 
+static struct dst_src test4[]=  {
+	{ .src = 100, .dst = 4 },
+	{ .src = 101, .dst = 1 },
+	{ .src =   1, .dst = 2 }, /* it should stop merging */
+	{ .src =   4, .dst = 3 },
+	{ .src =   3, .dst = 2 },
+	{ .src =   2, .dst = 1 }
+};
+
 
 static int
 do_test (struct dst_src * test, int num)
 {
 	struct node_list list;
+	struct node ** ptr_list;
 	node_list_create(&list, num, test);
 	node_list_dump(&list, "before ");
-	node_list_sort(&list);
-	node_list_dump(&list, "after sort");
+
+	ptr_list = calloc(list.num, sizeof(*ptr_list));
+	node_list_sort(&list, ptr_list);
+	node_ptr_list_dump(ptr_list, num, "after sort");
+	free(ptr_list);
 }
 
 int main(int argc, char **argv)
 {
-	//do_test(test1, sizeof(test1)/sizeof(test1[0]));
-	//do_test(test2, sizeof(test2)/sizeof(test2[0]));
+	do_test(test1, sizeof(test1)/sizeof(test1[0]));
+	do_test(test2, sizeof(test2)/sizeof(test2[0]));
 	do_test(test3, sizeof(test3)/sizeof(test3[0]));
+	do_test(test4, sizeof(test4)/sizeof(test4[0]));
 	return 0;
 }
