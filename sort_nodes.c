@@ -182,11 +182,13 @@ node_list_sort(struct node_list * list, struct node **ptr_list)
 
 		ptr_list[num--] = n1;
 		n0 = n1;
+		tmp = n1;
 		while(n0 = node_find_first_dep(list, n0->dst, n0->prev)) {
-			if (node_is_mergable(list, n0, n1)) {
+			if (node_is_mergable(list, n0, tmp)) {
 				//node_merge(list, n0, n1);
 				n0->color = NODE_COLOR_BLACK;
 				ptr_list[num--] = n0;
+				tmp = n0;
 			}
 		}
 		n1->color = NODE_COLOR_BLACK;
@@ -265,7 +267,8 @@ static struct dst_src test3[]=  {
 	{ .src = 101, .dst = 1 },
 	{ .src =   4, .dst = 3 },
 	{ .src =   3, .dst = 2 },
-	{ .src =   2, .dst = 1 }
+	{ .src =   2, .dst = 1 },
+	{ .src =   2, .dst = 1 },
 };
 
 static struct dst_src test4[]=  {
