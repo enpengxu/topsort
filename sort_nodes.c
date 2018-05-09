@@ -20,6 +20,7 @@
 #define for_each_node_between(node, n0, n1, dir)			\
 	for (node=(n1)->prev; node != (n0); node = node->dir)
 
+
 struct node {
 	int           src;
 	int           dst;
@@ -56,6 +57,42 @@ node_list_init(struct node_list * list)
 	/* 		} */
 	/* 	} */
 	/* } */
+}
+
+static inline void
+remove_node(struct node * node)
+{
+	assert(node && node->prev && node->next);
+
+	node->prev->next = node->next;
+	node->next->prev = node->prev;
+
+}
+
+/* insert node after prev  */
+static inline void
+insert_node(struct node * prev, struct node *node)
+{
+	prev->next->prev = node;
+	node->next = prev->next;
+	prev->next = node;
+	node->prev = prev;
+}
+
+
+static inline void
+swap_node(struct node * n1, struct node * n2)
+{
+	if (n1 != n2) {
+		struct node * prev1 = n1->prev;
+		remove_node(n1);
+		insert_node(n2, n1);
+		struct node * prev2 = n2->prev;
+		if (prev1 != prev2) {
+			remove_node(n2);
+			insert_node(prev1, n2);
+		}
+	}
 }
 
 static inline struct node *
@@ -118,22 +155,30 @@ node_list_sort(struct node_list * list, struct node **ptr_list)
 	assert(list && list->head.next && ptr_list);
 
 	unsigned num = list->num - 1;
+
 	n1 = last_node(list);
 	for_each_node(n1, list, prev) {
 		if (n1->color == NODE_COLOR_BLACK)
 			continue;
 
 		ptr_list[num--] = n1;
-		n0 = n1;
-		tmp = n1;
-
+#if 0
 		while(n0 = node_find_first_dep(list, n0->dst, n0->prev)) {
 			if (node_is_mergable(list, n0, tmp)) {
 				n0->color = NODE_COLOR_BLACK;
 				ptr_list[num--] = n0;
 				tmp = n0;
+				swap_node(n0, n1->prev);
 			}
 		}
+#else
+		if ((n0 = node_find_first_dep(list, n1->dst, n1->prev)) &&
+			node_is_mergable(list, n0, n1)) {
+			swap_node(n0, n1->prev);
+			n0->color = NODE_COLOR_BLACK;
+			ptr_list[num--] = n0;
+		}
+#endif
 		n1->color = NODE_COLOR_BLACK;
 	}
 }
@@ -193,18 +238,21 @@ node_ptr_list_dump(struct node ** ptr_list, unsigned num, const char * str)
 	fprintf(stderr, "\n");
 }
 
+/* (101/1) & (104/1) can be merged together */
 static struct dst_src test1[]= {
 	{ .src = 101, .dst = 1 },
 	{ .src = 102, .dst = 2 },
 	{ .src = 104, .dst = 1 }
 };
 
+/* (2/1) & (2/1) can not be merged because of (1/2) */
 static struct dst_src test2[]= {
 	{ .src = 2, .dst = 1 },
 	{ .src = 1, .dst = 2 },
 	{ .src = 2, .dst = 1 }
 };
 
+/* (101/1) (2/1) (2/1) should be merged toghether */
 static struct dst_src test3[]= {
 	{ .src = 100, .dst = 4 },
 	{ .src = 101, .dst = 1 },
@@ -214,15 +262,17 @@ static struct dst_src test3[]= {
 	{ .src =   2, .dst = 1 },
 };
 
+/* (101/1) can not be merged into (2/1) because (1/2) exist. */
 static struct dst_src test4[]=  {
 	{ .src = 100, .dst = 4 },
 	{ .src = 101, .dst = 1 },
-	{ .src =   1, .dst = 2 }, /* it should stop merging (101/1)-(2/1)*/
+	{ .src =   1, .dst = 2 },
 	{ .src =   4, .dst = 3 },
 	{ .src =   3, .dst = 2 },
 	{ .src =   2, .dst = 1 }
 };
 
+/* (100/4) & (2/4)  can be merged together */
 static struct dst_src test5[]=  {
 	{ .src = 100, .dst = 4 },
 	{ .src = 101, .dst = 1 },
@@ -232,6 +282,15 @@ static struct dst_src test5[]=  {
 	{ .src =   2, .dst = 4 }
 };
 
+static struct dst_src test6[] = {
+	{ .src = 100, .dst = 4 },
+	{ .src = 101, .dst = 1 },
+	{ .src = 1,   .dst = 2 },
+	{ .src = 6,   .dst = 3 },
+	{ .src = 4,   .dst = 2 },
+	{ .src = 5,   .dst = 1 },
+	{ .src = 3,   .dst = 2 },
+};
 
 static int
 run_test (struct dst_src * test, int num)
@@ -258,6 +317,7 @@ int main(int argc, char **argv)
 	test(3);
 	test(4);
 	test(5);
+	test(6);
 
 	return 0;
 }
