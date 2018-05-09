@@ -149,36 +149,21 @@ node_is_mergable(struct node_list * list,
 }
 
 static void
-node_list_sort(struct node_list * list, struct node **ptr_list)
+node_list_sort(struct node_list * list)
 {
 	struct node * n0, *n1, * tmp;
-	assert(list && list->head.next && ptr_list);
-
-	unsigned num = list->num - 1;
+	assert(list && list->head.next);
 
 	n1 = last_node(list);
 	for_each_node(n1, list, prev) {
 		if (n1->color == NODE_COLOR_BLACK)
 			continue;
 
-		ptr_list[num--] = n1;
-#if 0
-		while(n0 = node_find_first_dep(list, n0->dst, n0->prev)) {
-			if (node_is_mergable(list, n0, tmp)) {
-				n0->color = NODE_COLOR_BLACK;
-				ptr_list[num--] = n0;
-				tmp = n0;
-				swap_node(n0, n1->prev);
-			}
-		}
-#else
 		if ((n0 = node_find_first_dep(list, n1->dst, n1->prev)) &&
 			node_is_mergable(list, n0, n1)) {
 			swap_node(n0, n1->prev);
 			n0->color = NODE_COLOR_BLACK;
-			ptr_list[num--] = n0;
 		}
-#endif
 		n1->color = NODE_COLOR_BLACK;
 	}
 }
@@ -297,14 +282,11 @@ static int
 run_test (struct dst_src * test, int num)
 {
 	struct node_list list;
-	struct node ** ptr_list;
 	node_list_create(&list, num, test);
 	node_list_dump(&list, "before ");
 
-	ptr_list = calloc(list.num, sizeof(*ptr_list));
-	node_list_sort(&list, ptr_list);
-	node_ptr_list_dump(ptr_list, num, "after sort");
-	free(ptr_list);
+	node_list_sort(&list);
+	node_list_dump(&list, "after sort");
 }
 
 int main(int argc, char **argv)
