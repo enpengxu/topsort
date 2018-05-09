@@ -282,6 +282,7 @@ static struct dst_src test5[]=  {
 	{ .src =   2, .dst = 4 }
 };
 
+/* (1/2) should not be merged since (5/1) has dependency on it */
 static struct dst_src test6[] = {
 	{ .src = 100, .dst = 4 },
 	{ .src = 101, .dst = 1 },
